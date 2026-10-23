@@ -5,7 +5,7 @@
 header{display:flex;align-items:center;gap:6px;padding:8px 10px;background:#191c24;position:sticky;top:0;z-index:9;flex-wrap:wrap}
 h1{font-size:17px;margin:0;flex:1;white-space:nowrap}button,select{background:#2a2f3c;color:#eee;border:0;border-radius:10px;padding:7px 11px;font-size:14px;cursor:pointer}
 button.on{background:#e0a84f;color:#111}main{display:flex;flex-wrap:wrap}
-#left{flex:2 1 560px;padding:8px;min-width:0}#view{position:relative;overflow:hidden;border-radius:14px;background:#000;touch-action:none;aspect-ratio:4/3}
+#left{flex:2 1 560px;padding:8px;min-width:0}#view{position:relative;overflow:hidden;background:repeating-conic-gradient(#1a1d24 0 25%,#14161b 0 50%) 0 0/24px 24px;border-radius:14px;background:#000;touch-action:none;aspect-ratio:4/3}
 #inner{position:absolute;inset:0;transform-origin:0 0}#gl,#ov{position:absolute;inset:0;width:100%;height:100%}
 #thumbs{display:flex;gap:6px;margin:8px 0;overflow-x:auto}#thumbs img{height:64px;border-radius:8px;border:3px solid transparent;cursor:pointer}#thumbs img.on{border-color:#e0a84f}
 #thumbs label{display:flex;align-items:center;justify-content:center;min-width:86px;height:64px;border:2px dashed #555;border-radius:8px;cursor:pointer;font-size:13px;text-align:center}
@@ -22,7 +22,7 @@ input[type=color]{width:34px;height:32px;border:0;background:none;padding:0}
 <header><h1>🛋️ מעצב הסלון</h1>
 <button id="surprise">🎲 הפתע אותי</button><button id="reset">↺ מקורי</button><button id="share">🔗 שתף</button><button id="dl">⬇️ הורד HD</button></header>
 <main><div id="left">
-<div id="view"><div id="inner"><canvas id="gl"></canvas><canvas id="ov"></canvas></div><span class="lbl" style="left:8px">אחרי</span><span class="lbl" style="right:8px">לפני</span><div id="busy">טוען…</div></div>
+<div id="view"><div id="inner"><canvas id="gl"></canvas><canvas id="ov"></canvas></div><canvas id="hv" style="position:absolute;inset:0;width:100%;height:100%;pointer-events:none;display:none"></canvas><span class="lbl" style="left:8px">אחרי</span><span class="lbl" style="right:8px">לפני</span><div id="busy">טוען…</div></div>
 <div class="tools"><span>לפני</span><input type="range" id="ba" min="0" max="1000" value="1000"><span>אחרי</span>
 <button id="zin">＋</button><button id="zout">－</button></div>
 <div class="tools"><button id="mAccent">🎯 בחר קיר מודגש</button><button id="mPersp">📐 כיול פרספקטיבה</button>
@@ -60,15 +60,15 @@ float lum(vec3 c){return dot(c,vec3(.2126,.7152,.0722));}
 
 void main(){vec3 o=lin(texture2D(ph,v).rgb);float L=lum(o);
  if(v.x>split){gl_FragColor=vec4(srgb(o),1);return;}
- vec3 a=texture2D(ma,v).rgb,b=texture2D(mb,v).rgb;float tv=texture2D(mc,v).r,acm=texture2D(ac,v).r;
+ vec3 a=texture2D(ma,v).rgb,b=texture2D(mb,v).rgb;vec3 mcc=texture2D(mc,v).rgb;float tv=mcc.r,acm=texture2D(ac,v).r;float Ls=max(lin(vec3(mcc.g)).r,1e-4);float det=clamp(L/Ls,.3,2.5);
  vec3 c=o;float w[7];w[0]=a.r;w[1]=a.g;w[2]=a.b;w[3]=b.r;w[4]=b.g;w[5]=b.b;w[6]=tv;
  float wa=a.r*acm;
  for(int i=0;i<7;i++){ if(i==1){
    if(fmode>1.5){vec3 q=Hi*vec3(v*asp,1.);vec2 uv=q.xy/q.z/tscale;
      vec3 t=lin(texture2D(ft,uv).rgb);if(stainOn>.5)t=lin(stain)*(lum(t)/tmean)*.9;
-     float sh=L/mean[1];float spec=max(0.,sh-1.6)*.5;c=mix(c,t*min(sh,1.6)/1.1+spec*.3,w[1]);}
+     float sh=min(Ls/mean[1],2.2)*pow(det,.18);float spec=max(0.,Ls/mean[1]-1.3)*.35+max(0.,det-1.25)*.25;c=mix(c,t*sh/1.05+spec*.25,w[1]);}
    else if(fmode>.5)c=mix(c,lin(col[1])*min(L/mean[1],3.),w[1]);
-  } else if(on[i]>.5)c=mix(c,lin(col[i])*min(L/mean[i],3.),w[i]); }
+  } else if(on[i]>.5){vec3 nc=(i==3)?lin(col[i])*pow(min(Ls/mean[i],4.),.8)*pow(det,.55):lin(col[i])*min(L/mean[i],3.);c=mix(c,nc,w[i]);} }
  if(on[7]>.5)c=mix(c,lin(col[7])*min(L/mean[0],3.),wa);
  c*=lt;if(dark>0.){float d=distance(v,vec2(.5,.25));c*=mix(1.,.35+.9*exp(-d*d*6.),dark);}
  gl_FragColor=vec4(srgb(c),1);}`;
@@ -124,21 +124,24 @@ const LT={day:[1,1,1],warm:[1.06,1,.9],cool:[.9,.98,1.12],golden:[1.1,.97,.8],ev
 gl.uniform1f(U('split'),ba.value/1000);gl.drawArrays(gl.TRIANGLE_STRIP,0,4);drawOv()}
 // ---------- overlay: perspective handles / polygons
 const ov=document.getElementById('ov'),ox=ov.getContext('2d');let mode='',poly=[],polys={};
-function drawOv(){ox.clearRect(0,0,ov.width,ov.height);const W=ov.width,H=ov.height;
+function drawHv(){const hv=document.getElementById('hv');hv.style.display=mode=='persp'?'':'none';if(mode!='persp')return;const r=view.getBoundingClientRect(),dp=devicePixelRatio||1;hv.width=r.width*dp;hv.height=r.height*dp;const x=hv.getContext('2d');x.scale(dp,dp);
+const P=cur.persp.slice(0,4).map(([u,v])=>[Z.x+u*r.width*Z.s,Z.y+v*r.height*Z.s]);x.fillStyle='rgba(0,0,0,.25)';x.strokeStyle='#0ff';x.lineWidth=3;x.beginPath();P.forEach((p,i)=>i?x.lineTo(...p):x.moveTo(...p));x.closePath();x.fill();x.stroke();
+x.strokeStyle='rgba(255,255,255,.5)';x.lineWidth=1;x.strokeRect(Z.x,Z.y,r.width*Z.s,r.height*Z.s);P.forEach(([px,py],i)=>{x.fillStyle='rgba(0,255,255,.35)';x.beginPath();x.arc(px,py,26,0,7);x.fill();x.fillStyle='#0ff';x.beginPath();x.arc(px,py,9,0,7);x.fill();x.fillStyle='#000';x.font='bold 13px sans-serif';x.fillText(i+1,px-4,py+5)})}
+function drawOv(){drawHv();ox.clearRect(0,0,ov.width,ov.height);const W=ov.width,H=ov.height;
 const s=ba.value/1000;if(s<1){ox.fillStyle='#e0a84f';ox.fillRect(s*W-2,0,4,H)}
-if(mode=='persp'){const P=cur.persp;ox.strokeStyle='#0ff';ox.lineWidth=3;ox.beginPath();P.slice(0,4).forEach(([x,y],i)=>i?ox.lineTo(x*W,y*H):ox.moveTo(x*W,y*H));ox.closePath();ox.stroke();
+if(false){const P=cur.persp;ox.strokeStyle='#0ff';ox.lineWidth=3;ox.beginPath();P.slice(0,4).forEach(([x,y],i)=>i?ox.lineTo(x*W,y*H):ox.moveTo(x*W,y*H));ox.closePath();ox.stroke();
 P.slice(0,4).forEach(([x,y],i)=>{ox.fillStyle='#0ff';ox.beginPath();ox.arc(x*W,y*H,16,0,7);ox.fill();ox.fillStyle='#000';ox.font='bold 16px sans-serif';ox.fillText(i+1,x*W-5,y*H+6)})}
 if(cur&&cur.own){const k=region.value;[polys[k]||[],poly].forEach((m,j)=>{if(!m.length)return;ox.strokeStyle=j?'#ff0':'#e0a84f';ox.lineWidth=3;ox.setLineDash([10,6]);ox.beginPath();m.forEach(([x,y],i)=>i?ox.lineTo(x*W,y*H):ox.moveTo(x*W,y*H));if(!j)ox.closePath();ox.stroke();ox.setLineDash([]);m.forEach(([x,y])=>{ox.fillStyle='#fff';ox.beginPath();ox.arc(x*W,y*H,7,0,7);ox.fill()})})}}
 // ---------- zoom/pan
 const view=document.getElementById('view'),inner=document.getElementById('inner');let Z={s:1,x:0,y:0};
-function applyZ(){const r=view.getBoundingClientRect();Z.s=Math.max(1,Math.min(8,Z.s));Z.x=Math.min(0,Math.max(r.width*(1-Z.s),Z.x));Z.y=Math.min(0,Math.max(r.height*(1-Z.s),Z.y));inner.style.transform=`translate(${Z.x}px,${Z.y}px) scale(${Z.s})`}
+function applyZ(){const r=view.getBoundingClientRect();if(mode=='persp'){Z.s=Math.max(.3,Math.min(8,Z.s))}else{Z.s=Math.max(1,Math.min(8,Z.s));Z.x=Math.min(0,Math.max(r.width*(1-Z.s),Z.x));Z.y=Math.min(0,Math.max(r.height*(1-Z.s),Z.y))}inner.style.transform=`translate(${Z.x}px,${Z.y}px) scale(${Z.s})`;drawHv()}
 function zoomAt(f,cx,cy){Z.x=cx-(cx-Z.x)*f;Z.y=cy-(cy-Z.y)*f;Z.s*=f;applyZ()}
 zin.onclick=()=>{const r=view.getBoundingClientRect();zoomAt(1.6,r.width/2,r.height/2)};zout.onclick=()=>{const r=view.getBoundingClientRect();zoomAt(1/1.6,r.width/2,r.height/2)};
 view.addEventListener('wheel',e=>{e.preventDefault();const r=view.getBoundingClientRect();zoomAt(e.deltaY<0?1.15:1/1.15,e.clientX-r.left,e.clientY-r.top)},{passive:false});
 const pts=new Map();let drag=null,moved=0;
 function norm(e){const r=inner.getBoundingClientRect();return[(e.clientX-r.left)/r.width,(e.clientY-r.top)/r.height]}
 view.addEventListener('pointerdown',e=>{view.setPointerCapture(e.pointerId);pts.set(e.pointerId,[e.clientX,e.clientY]);moved=0;
- if(mode=='persp'){const p=norm(e);let bi=-1,bd=.05;cur.persp.slice(0,4).forEach((q,i)=>{const d=Math.hypot(q[0]-p[0],q[1]-p[1]);if(d<bd){bd=d;bi=i}});if(bi>=0)drag=bi}});
+ if(mode=='persp'){const r=view.getBoundingClientRect(),vx=e.clientX-r.left,vy=e.clientY-r.top;let bi=-1,bd=40;cur.persp.slice(0,4).forEach(([u,v],i)=>{const d=Math.hypot(Z.x+u*r.width*Z.s-vx,Z.y+v*r.height*Z.s-vy);if(d<bd){bd=d;bi=i}});if(bi>=0)drag=bi}});
 view.addEventListener('pointermove',e=>{if(!pts.has(e.pointerId))return;const old=pts.get(e.pointerId);const dx=e.clientX-old[0],dy=e.clientY-old[1];moved+=Math.abs(dx)+Math.abs(dy);
  if(drag!=null){cur.persp[drag]=norm(e);render();pts.set(e.pointerId,[e.clientX,e.clientY]);return}
  if(pts.size==2){const [a,b]=[...pts.values()];const d0=Math.hypot(a[0]-b[0],a[1]-b[1]);pts.set(e.pointerId,[e.clientX,e.clientY]);const [c,d]=[...pts.values()];const d1=Math.hypot(c[0]-d[0],c[1]-d[1]);const r=view.getBoundingClientRect();zoomAt(d1/d0,(c[0]+d[0])/2-r.left,(c[1]+d[1])/2-r.top);return}
@@ -173,8 +176,8 @@ const hint=document.getElementById('hint'),ba=document.getElementById('ba'),regi
 region.innerHTML=REG.map(r=>`<option value="${r}">${RL[r]}</option>`).join('');region.onchange=()=>{poly=[];drawOv()};
 pClose.onclick=()=>{if(poly.length>2){polys[region.value]=poly;poly=[];buildOwnMasks();if(!S['c_'+region.value]&&region.value!='floor')S['c_'+region.value]=PAL[region.value][3];if(region.value=='floor'&&S.floorMode=='orig')S.floorMode='color';panel();render()}};
 pUndo.onclick=()=>{poly.pop();drawOv()};pClear.onclick=()=>{delete polys[region.value];poly=[];buildOwnMasks();render()};
-function setMode(m){mode=mode==m?'':m;mAccent.classList.toggle('on',mode=='accent');mPersp.classList.toggle('on',mode=='persp');
-hint.textContent={accent:'הקש על קיר בתמונה כדי להפוך אותו לקיר מודגש',persp:'גרור את 4 הנקודות לפינות של מלבן על הרצפה (למשל לאורך הקירות) – הדוגמה תתיישר לפרספקטיבה',draw:'הקש נקודות סביב אזור, ואז "סגור צורה". בחר אזור מהרשימה.','':''}[mode];drawOv()}
+function setMode(m){mode=mode==m?'':m;{const r=view.getBoundingClientRect();if(mode=='persp'){Z.s=.55;Z.x=r.width*.225;Z.y=r.height*.225}else{Z.s=1;Z.x=0;Z.y=0}applyZ()}mAccent.classList.toggle('on',mode=='accent');mPersp.classList.toggle('on',mode=='persp');
+hint.textContent={accent:'הקש על קיר בתמונה כדי להפוך אותו לקיר מודגש',persp:'גרור את 4 הנקודות (גם מחוץ לתמונה) כך שהקווים יקבילו לקווי הקירות/הרצפה. הריצוף מתיישר בזמן אמת. לחץ שוב על הכפתור לסיום.',draw:'הקש נקודות סביב אזור, ואז "סגור צורה". בחר אזור מהרשימה.','':''}[mode];drawOv()}
 mAccent.onclick=()=>setMode('accent');mPersp.onclick=()=>{if(S.floorMode!='tex'){S.floorMode='tex';panel();render()}setMode('persp')};
 ba.oninput=render;
 function busy(b){document.getElementById('busy').style.display=b?'flex':'none'}
@@ -202,5 +205,5 @@ dl.onclick=()=>{const v=ba.value;ba.value=1000;render().then(()=>{cv.toBlob(b=>{
 document.getElementById('thumbs').innerHTML=PH.map((n,i)=>`<img src="${A}p${n}.jpg" data-i="${i}" loading="lazy">`).join('')+'<label>📷 התמונה שלי<input type="file" accept="image/*" hidden id="file"></label>';
 document.getElementById('thumbs').addEventListener('click',e=>{if(e.target.dataset.i!=null){view.style.aspectRatio='4/3';setPhoto(+e.target.dataset.i)}});
 file.onchange=e=>e.target.files[0]&&ownPhoto(e.target.files[0]);
-addEventListener('resize',applyZ);panel();setPhoto(+S.photo||0);
+addEventListener('resize',applyZ);view.addEventListener('touchmove',e=>e.preventDefault(),{passive:false});panel();setPhoto(+S.photo||0);
 </script></body></html>
