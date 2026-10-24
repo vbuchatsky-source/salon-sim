@@ -71,7 +71,7 @@ void main(){vec3 o=lin(texture2D(ph,v).rgb);float L=lum(o);
   } else if(on[i]>.5){vec3 nc=(i==3)?lin(col[i])*pow(min(Ls/mean[i],4.),.8)*pow(det,.55):lin(col[i])*min(L/mean[i],3.);c=mix(c,nc,w[i]);} }
  if(on[7]>.5)c=mix(c,lin(col[7])*min(L/mean[0],3.),wa);
  c*=lt;if(dark>0.){float d=distance(v,vec2(.5,.25));c*=mix(1.,.35+.9*exp(-d*d*6.),dark);}
- gl_FragColor=vec4(srgb(c),1);}`;
+ float lc=lum(c);if(lc>.75){float t=.75+.25*(1.-exp(-(lc-.75)/.25));c*=t/lc;}gl_FragColor=vec4(srgb(c),1);}`;
 function sh(t,s){const o=gl.createShader(t);gl.shaderSource(o,s);gl.compileShader(o);if(!gl.getShaderParameter(o,gl.COMPILE_STATUS))console.error(gl.getShaderInfoLog(o));return o}
 const pr=gl.createProgram();gl.attachShader(pr,sh(gl.VERTEX_SHADER,VS));gl.attachShader(pr,sh(gl.FRAGMENT_SHADER,FS));gl.linkProgram(pr);gl.useProgram(pr);
 gl.bindBuffer(gl.ARRAY_BUFFER,gl.createBuffer());gl.bufferData(gl.ARRAY_BUFFER,new Float32Array([-1,-1,1,-1,-1,1,1,1]),gl.STATIC_DRAW);
