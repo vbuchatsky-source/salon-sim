@@ -92,7 +92,7 @@ async function floorTex(name){if(texCache[name])return texCache[name];let c=docu
 const d=x.getImageData(0,0,1024,1024).data;let s=0;for(let i=0;i<d.length;i+=4*97){const l=.2126*(d[i]/255)**2.2+.7152*(d[i+1]/255)**2.2+.0722*(d[i+2]/255)**2.2;s+=l}
 return texCache[name]={c,mean:s/(d.length/4/97)}}
 // ---------- photos
-let cur=null,meta={};const PERSP={84:[[.43,.5],[.8,.47],[1.08,.82],[.22,.67],3.5,3],85:[[.42,.55],[.76,.535],[1.0,.98],[.12,.92],3.5,4],86:[[.15,.6],[.62,.585],[1.05,.98],[-.15,.97],4,3.5],87:[[.31,.6],[.63,.6],[1.2,1.0],[-.12,1.0],3.4,4]};
+let cur=null,meta={};const PERSP={84:[[.43,.5],[.8,.47],[1.08,.82],[.22,.67],3.5,3],85:[[.42,.55],[.76,.535],[1.0,.98],[.12,.92],3.5,4],86:[[.15,.6],[.62,.585],[1.05,.98],[-.15,.97],4,3.5],87:[[.294,.5],[.644,.5],[1.3,1.0],[-.3,1.0],2.2,3.5]};
 function homog(src,dst){// src->dst 4pts, returns 3x3 row-major
 const M=[],b=[];for(let i=0;i<4;i++){const[x,y]=src[i],[u,v]=dst[i];M.push([x,y,1,0,0,0,-u*x,-u*y]);b.push(u);M.push([0,0,0,x,y,1,-v*x,-v*y]);b.push(v)}
 for(let i=0;i<8;i++){let p=i;for(let r=i+1;r<8;r++)if(Math.abs(M[r][i])>Math.abs(M[p][i]))p=r;[M[i],M[p]]=[M[p],M[i]];[b[i],b[p]]=[b[p],b[i]];
